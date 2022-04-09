@@ -7,13 +7,16 @@ This library provides debugging functionality to Ruby (MRI) 2.6 and later.
 This debug.rb is replacement of traditional lib/debug.rb standard library which is implemented by `set_trace_func`.
 New debug.rb has several advantages:
 
-- Fast: No performance penalty on non-stepping mode and non-breakpoints.
-- [Remote debugging](#remote-debugging): Support remote debugging natively.
+* Fast: No performance penalty on non-stepping mode and non-breakpoints.
+* [Remote debugging](#remote-debugging): Support remote debugging natively.
   - [UNIX domain socket](/docs/remote_debugging.md#invoke-program-as-a-remote-debuggee)
   - [TCP/IP](/docs/remote_debugging.md#tcpip)
-  - Integration with rich debugger frontend
-    - [VSCode](/docs/remote_debugging.md#vscode) (or other DAP supporting clients)
-    - [Chrome DevTools](/docs/remote_debugging.md#chrome-devtool-integration) (or other CDP supporting clients)
+  * Integration with rich debugger frontends
+
+     Frontend |  [Console](/docs/remote_debugging.md#debugger-console) | [VSCode](/docs/remote_debugging.md#vscode) | [Chrome DevTools](/docs/remote_debugging.md#chrome-devtool-integration) |
+     ---|---|---|---|
+     Connection | UDS, TCP/IP | UDS, TCP/IP | TCP/IP |
+     Requirement | No | [vscode-rdbg](https://marketplace.visualstudio.com/items?itemName=KoichiSasada.vscode-rdbg) | No |
 - Flexible: Users can use the debugger in multiple ways
   - Through requiring files
   - Through the `rdbg` executable
