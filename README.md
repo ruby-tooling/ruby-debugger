@@ -9,7 +9,7 @@ New debug.rb has several advantages:
 
 * Fast: No performance penalty on non-stepping mode and non-breakpoints.
 * [Remote debugging](#remote-debugging): Support remote debugging natively.
-  - [UNIX domain socket](/docs/remote_debugging.md#invoke-program-as-a-remote-debuggee)
+  - [UNIX domain socket](/docs/remote_debugging.md#invoke-program-as-a-remote-debuggee) (UDS)
   - [TCP/IP](/docs/remote_debugging.md#tcpip)
   * Integration with rich debugger frontends
 
