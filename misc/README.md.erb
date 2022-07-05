@@ -18,11 +18,6 @@ New debug.rb has several advantages:
   * By `rdbg` command
   * By loading libraries with `-r` command line option
   * By calling Ruby's method explicitly
-* Misc
-  * Support threads (almost done) and ractors (TODO).
-  * Support suspending and entering to the console debugging with `Ctrl-C` at most of timing.
-  * Show parameters on backtrace command.
-  * Support recording & reply debugging.
 
 # Installation
 
@@ -30,15 +25,13 @@ New debug.rb has several advantages:
 $ gem install debug
 ```
 
-or specify `-Ipath/to/debug/lib` in `RUBYOPT` or each ruby command-line option, especially for debug this gem development.
-
 If you use Bundler, write the following line to your Gemfile.
 
-```
+```rb
 gem "debug", ">= 1.0.0"
 ```
 
-# HOW TO USE
+# Usage
 
 To use a debugger, roughly you will do the following steps:
 
