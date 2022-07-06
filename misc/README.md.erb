@@ -24,7 +24,6 @@ New debug.rb has several advantages:
 ```
 $ gem install debug
 ```
-
 If you use Bundler, write the following line to your Gemfile.
 
 ```rb
@@ -47,22 +46,14 @@ To use a debugger, roughly you will do the following steps:
     * [Change the configuration](#configuration-1) (e.g. `config set no_color true` to disable coloring).
     * Continue the program (`c` or `continue`) and goto 3.
 
-## Invoke with the debugger
+## Set breakpoints with [`binding.break`](#bindingbreak-method) (similar to `binding.pry` or `binding.irb`)
 
-There are several options for (1) and (2). Please choose your favorite way.
-
-### Modify source code with [`binding.break`](#bindingbreak-method) (similar to `binding.pry` or `binding.irb`)
-
-If you can modify the source code, you can use the debugger by adding `require 'debug'` at the top of your program and putting [`binding.break`](#bindingbreak-method) method into lines where you want to stop as breakpoints like `binding.pry` and `binding.irb`.
-
-You can also use its 2 aliases in the same way:
+After the debugger is required (e.g. through `require 'debug'`), you can set breakpoints in your program with [`binding.break`](#bindingbreak-method), which has 2 other aliases
 
 - `binding.b`
 - `debugger`
 
-After that, run the program as usual and you will enter the debug console at breakpoints you inserted.
-
-The following example shows the demonstration of [`binding.break`](#bindingbreak-method).
+Once your program hits the breakpoint, it will stop there and start a debugging session:
 
 ```shell
 $ cat target.rb                        # Sample program
@@ -256,19 +247,15 @@ You can use this debugger as a remote debugger. For example, it will help the fo
 
 To learn more about remote debugging, please visit [the remote debugging guide](docs/remote_debugging.md).
 
-## Configuration
+# Configuration
 
-You can configure the debugger's behavior with debug commands and environment variables.
-When the debug session is started, initial scripts are loaded so you can put your favorite configurations in the initial scripts.
+You can configure the debugger's behavior with the `config` command and environment variables.
 
-### Configuration list
-
-You can configure debugger's behavior with environment variables and `config` command. Each configuration has environment variable and the name which can be specified by `config` command.
+Every configuration has a corresponding environment variable, for example:
 
 ```
-# configuration example
-config set log_level INFO
-config set no_color true
+config set log_level INFO # RUBY_DEBUG_LOG_LEVEL=INFO
+config set no_color true  # RUBY_DEBUG_NO_COLOR=true
 ```
 
 <% cat = nil; DEBUGGER__::CONFIG_SET.each do |key, (env, desc, _, default)| %>
@@ -276,17 +263,22 @@ config set no_color true
 * <%= $1 %>
 <% cat = $1; end %>  * `<%= env %>` (`<%= key %>`): <%= default ? "#{$2} (default: #{default})" : $2 %><% end %>
 
-### Initial scripts
+## Initial scripts
 
-If there is `~/.rdbgrc`, the file is loaded as an initial script (which contains debug commands) when the debug session is started.
+If you want to run certain commands or set configurations for every debugging session automatically, you can put them into the `~/.rdbgrc` file.
 
-* `RUBY_DEBUG_INIT_SCRIPT` environment variable can specify the initial script file.
-* You can specify the initial script with `rdbg -x initial_script` (like gdb's `-x` option).
+If you want to run additional initial scripts, you can also,
 
-Initial scripts are useful to write your favorite configurations.
-For example, you can set break points with `break file:123` in `~/.rdbgrc`.
+* Use `RUBY_DEBUG_INIT_SCRIPT` environment variable can specify the initial script file.
+* Specify the initial script with `rdbg -x initial_script`.
 
-If there are `~/.rdbgrc.rb` is available, it is also loaded as a ruby script at same timing.
+Initial scripts are useful to write your favorite configurations.  For example,
+
+```
+config set use_short_path true # Use $(Gem)/gem_content to replace the absolute path of gem files
+```
+
+Finally, you can also write the initial script in Ruby with the file name `~/.rdbgrc.rb`.
 
 ## Debug command on the debug console
 
