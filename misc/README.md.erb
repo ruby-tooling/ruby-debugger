@@ -169,9 +169,7 @@ To learn more about remote debugging, please visit [the remote debugging guide](
 
 # Console commands
 
-In the debug console, you can use the following debug commands.
-
-There are additional features:
+Before we get into debugger commands, there are a few other console features:
 
 - `<expr>` without debug command is almost same as `pp <expr>`.
   - If the input line `<expr>` does *NOT* start with any debug command, the line `<expr>` will be evaluated as a Ruby expression and the result will be printed with `pp` method. So that the input `foo.bar` is same as `pp foo.bar`.
