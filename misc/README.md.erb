@@ -75,6 +75,10 @@ Here are the 2 most common usages of the debugger:
   1. Continue the program - e.g. type `continue`
   1. When the program reaches the location, debugger will stop it and open up a console
 
+## VSCode Integration
+
+A big enhancement of the debugger is its built-in integration with VSCode. Please check the dedicated [VSCode section](/docs/remote_debugging.md#vscode) for more information.
+
 ## Activate the debugger in your program
 
 As mentioned earlier, you can use various ways to integrate the debugger with your program.
