@@ -16,7 +16,7 @@ New debug.rb has several advantages:
      Frontend |  [Console](/docs/remote_debugging.md#debugger-console) | [VSCode](/docs/remote_debugging.md#vscode) | [Chrome DevTools](/docs/remote_debugging.md#chrome-devtool-integration) |
      ---|---|---|---|
      Connection | UDS, TCP/IP | UDS, TCP/IP | TCP/IP |
-     Requirement | No | [vscode-rdbg](https://marketplace.visualstudio.com/items?itemName=KoichiSasada.vscode-rdbg) | No |
+     Requirement | No | [vscode-rdbg](https://marketplace.visualstudio.com/items?itemName=KoichiSasada.vscode-rdbg) | Chrome |
 - Flexible: Users can use the debugger in multiple ways
   - Through requiring files
   - Through the `rdbg` executable
