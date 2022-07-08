@@ -14,7 +14,7 @@ New debug.rb has several advantages:
   - Integration with rich debugger frontend
     - [VSCode](/docs/remote_debugging.md#vscode) (or other DAP supporting clients)
     - [Chrome DevTools](/docs/remote_debugging.md#chrome-devtool-integration) (or other CDP supporting clients)
-- Flexible: Users can integrate with the debugger in multiple ways
+- Flexible: Users can use the debugger in multiple ways
   - Through requiring files
   - Through the `rdbg` executable
   - Through Ruby APIs
@@ -42,17 +42,17 @@ But essentially, it consists of 4 steps:
     - [Breakpoint commands](#breakpoint)
 1. Execute/continue your program and wait for it to hit the breakpoints
 1. Start debugging
-    - Here's the [full commands list](#console-commands)
+    - Here's the [full command list](#console-commands)
     - You can also type `help` or `help <command>` in the console to see commands
 
-> **NOTE**
+> **Note**
 > If you want to use remote console or VSCode/Chrome integration, the steps will be slightly different. Please also check the [remote debugging guide](/docs/remote_debugging.md) as well.
 
 ## Common Usges
 
 Here are the 2 most common usages of the debugger:
 
-### Quick start (similar to `byebug` or `pry` use cases)
+### Start with `require` (similar to `byebug` or `pry` use cases)
   1.
       ```rb
       require "debug"
@@ -66,7 +66,7 @@ Here are the 2 most common usages of the debugger:
       ```
   1. When the program executes `target_method`, debugger will stop it and open up a console
 
-### Traditional debugger start
+### Start with `rdbg` command
   1.
       ```shell
       $ bundle exec rdbg -c -- <cmd to start my program> # this will immediately open up a console
@@ -104,10 +104,10 @@ Examples:
 - `rdbg -c -- bundle exec rake test`
 - `rdbg -c -- ruby target.rb` is same as `rdbg target.rb`
 
-> **NOTE**
+> **Note**
 > `--` is needed to separate the command line options for `rdbg` and invoking command. For example, `rdbg -c rake -T` is recognized like `rdbg -c -T -- rake`. It should be `rdbg -c -- rake -T`.
 
-> **NOTE**
+> **Note**
 > If you want to use bundler (`bundle` command), you need to write `gem debug` line in your `Gemfile`.
 
 ## The `binding.break` method
@@ -448,7 +448,7 @@ config set no_color true  # RUBY_DEBUG_NO_COLOR=true
 - OBSOLETE
   - `RUBY_DEBUG_PARENT_ON_FORK` (`parent_on_fork`): Keep debugging parent process on fork (default: false)
 
-## Initial scripts
+## Initialization scripts
 
 If you want to run certain commands or set configurations for every debugging session automatically, you can put them into the `~/.rdbgrc` file.
 
