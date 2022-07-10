@@ -7,341 +7,175 @@ This library provides debugging functionality to Ruby (MRI) 2.6 and later.
 This debug.rb is replacement of traditional lib/debug.rb standard library which is implemented by `set_trace_func`.
 New debug.rb has several advantages:
 
-* Fast: No performance penalty on non-stepping mode and non-breakpoints.
-* [Remote debugging](#remote-debugging): Support remote debugging natively.
-  * [UNIX domain socket](/docs/remote_debugging.md#invoke-program-as-a-remote-debuggee)
-  * [TCP/IP](/docs/remote_debugging.md#tcpip)
-  * Integration with rich debugger frontend
+- Fast: No performance penalty on non-stepping mode and non-breakpoints.
+- [Remote debugging](#remote-debugging): Support remote debugging natively.
+  - [UNIX domain socket](/docs/remote_debugging.md#invoke-program-as-a-remote-debuggee)
+  - [TCP/IP](/docs/remote_debugging.md#tcpip)
+  - Integration with rich debugger frontend
     - [VSCode](/docs/remote_debugging.md#vscode) (or other DAP supporting clients)
     - [Chrome DevTools](/docs/remote_debugging.md#chrome-devtool-integration) (or other CDP supporting clients)
-* Extensible: application can introduce debugging support with several ways:
-  * By `rdbg` command
-  * By loading libraries with `-r` command line option
-  * By calling Ruby's method explicitly
-* Misc
-  * Support threads (almost done) and ractors (TODO).
-  * Support suspending and entering to the console debugging with `Ctrl-C` at most of timing.
-  * Show parameters on backtrace command.
-  * Support recording & reply debugging.
+- Flexible: Users can use the debugger in multiple ways
+  - Through requiring files
+  - Through the `rdbg` executable
+  - Through Ruby APIs
 
 # Installation
 
 ```
 $ gem install debug
 ```
-
-or specify `-Ipath/to/debug/lib` in `RUBYOPT` or each ruby command-line option, especially for debug this gem development.
-
 If you use Bundler, write the following line to your Gemfile.
 
-```
+```rb
 gem "debug", ">= 1.0.0"
 ```
 
-# HOW TO USE
+# Usage
 
-To use a debugger, roughly you will do the following steps:
+The debugger is designed to support a wide range of use cases, so you have many ways to use it.
 
-1. Set breakpoints.
-2. Run a program with the debugger.
-3. At the breakpoint, enter the debugger console.
-4. Use debug commands.
-    * [Evaluate Ruby expressions](#evaluate) (e.g. `p lvar` to see the local variable `lvar`).
-    * [Query the program status](#information) (e.g. `info` to see information about the current frame).
-    * [Control program flow](#control-flow) (e.g. move to the another line with `step`, to the next line with `next`).
-    * [Set another breakpoint](#breakpoint) (e.g. `catch Exception` to set a breakpoint that'll be triggered when `Exception` is raised).
-    * [Activate tracing in your program](#trace) (e.g. `trace call` to trace method calls).
-    * [Change the configuration](#configuration-1) (e.g. `config set no_color true` to disable coloring).
-    * Continue the program (`c` or `continue`) and goto 3.
+But essentially, it consists of 4 steps:
 
-## Invoke with the debugger
+1. [Activate the debugger in your program](#activate-the-debugger-in-your-program)
+1. Set breakpoints
+    - Through [`binding.break`](#the-bindingbreak-method)
+    - [Breakpoint commands](#breakpoint)
+1. Execute/continue your program and wait for it to hit the breakpoints
+1. Start debugging
+    - Here's the [full command list](#console-commands)
+    - You can also type `help` or `help <command>` in the console to see commands
 
-There are several options for (1) and (2). Please choose your favorite way.
+> **Note**
+> If you want to use remote console or VSCode/Chrome integration, the steps will be slightly different. Please also check the [remote debugging guide](/docs/remote_debugging.md) as well.
 
-### Modify source code with [`binding.break`](#bindingbreak-method) (similar to `binding.pry` or `binding.irb`)
+## Common Usges
 
-If you can modify the source code, you can use the debugger by adding `require 'debug'` at the top of your program and putting [`binding.break`](#bindingbreak-method) method into lines where you want to stop as breakpoints like `binding.pry` and `binding.irb`.
+Here are the 2 most common usages of the debugger:
 
-You can also use its 2 aliases in the same way:
+### Start with `require` (similar to `byebug` or `pry` use cases)
+  1.
+      ```rb
+      require "debug"
+      ```
+  1.
+      ```rb
+      # somewhere in your program
+      def target_method
+        binding.break
+      end
+      ```
+  1. When the program executes `target_method`, debugger will stop it and open up a console
 
-- `binding.b`
-- `debugger`
+### Start with `rdbg` command
+  1.
+      ```shell
+      $ bundle exec rdbg -c -- <cmd to start my program> # this will immediately open up a console
+      ```
+  1. Set a breakpoint in the console - e.g. type `break my_file:6`
+  1. Continue the program - e.g. type `continue`
+  1. When the program reaches the location, debugger will stop it and open up a console
 
-After that, run the program as usual and you will enter the debug console at breakpoints you inserted.
+## VSCode Integration
 
-The following example shows the demonstration of [`binding.break`](#bindingbreak-method).
+A big enhancement of the debugger is its built-in integration with VSCode. Please check the dedicated [VSCode section](/docs/remote_debugging.md#vscode) for more information.
 
-```shell
-$ cat target.rb                        # Sample program
-require 'debug'
+## Activate the debugger in your program
 
-a = 1
-b = 2
-binding.break                          # Program will stop here
-c = 3
-d = 4
-binding.break                          # Program will stop here
-p [a, b, c, d]
+As mentioned earlier, you can use various ways to integrate the debugger with your program.
 
-$ ruby target.rb                       # Run the program normally.
-DEBUGGER: Session start (pid: 7604)
-[1, 10] in target.rb
-      1| require 'debug'
-      2|
-      3| a = 1
-      4| b = 2
-=>    5| binding.break                 # Now you can see it stops at this line
-      6| c = 3
-      7| d = 4
-      8| binding.break
-      9| p [a, b, c, d]
-     10|
-=>#0    <main> at target.rb:5
+So in addition to the 2 most common cases, here's a more detailed breakdown:
 
-(rdbg) info locals                     # You can show local variables
-=>#0    <main> at target.rb:5
-%self => main
-a => 1
-b => 2
-c => nil
-d => nil
+Start at program start | `rdbg` | require | debugger API (after `require "debug/session"`)
+---|---|---|---|
+Yes | `rdbg` | `require "debug/start"` | `DEBUGGER__.start`
+No | `rdbg --nonstop` | `require "debug"` | `DEBUGGER__.start(nonstop: true)`
 
-(rdbg) continue                        # Continue the execution
-[3, 11] in target.rb
-      3| a = 1
-      4| b = 2
-      5| binding.break
-      6| c = 3
-      7| d = 4
-=>    8| binding.break                 # Again the program stops here
-      9| p [a, b, c, d]
-     10|
-     11| __END__
-=>#0    <main> at target.rb:8
+### The `rdbg` executable
 
-(rdbg) info locals                     # And you can see the updated local variables
-=>#0    <main> at target.rb:8
-%self => main
-a => 1
-b => 2
-c => 3
-d => 4
+You can also start your program with the `rdbg` executable, which will enter a debugging session at the beginning of your program by default.
 
-(rdbg) continue
-[1, 2, 3, 4]
-```
-
-### Invoke the program from the debugger as a traditional debuggers
-
-If you don't want to modify the source code, you can set breakpoints with a debug command `break` (`b` for short).
-Using `rdbg` command to launch the program without any modifications, you can run the program with the debugger.
-
-```shell
-$ cat target.rb                        # Sample program
-a = 1
-b = 2
-c = 3
-d = 4
-p [a, b, c, d]
-
-$ rdbg target.rb                       # run like `ruby target.rb`
-DEBUGGER: Session start (pid: 7656)
-[1, 7] in target.rb
-=>    1| a = 1
-      2| b = 2
-      3| c = 3
-      4| d = 4
-      5| p [a, b, c, d]
-      6|
-      7| __END__
-=>#0    <main> at target.rb:1
-
-(rdbg)
-```
-
-`rdbg` command suspends the program at the beginning of the given script (`target.rb` in this case) and you can use debug commands. `(rdbg)` is prompt. Let's set breakpoints on line 3 and line 5 with `break` command (`b` for short).
-
-```shell
-(rdbg) break 3                         # set breakpoint at line 3
-#0  BP - Line  /mnt/c/ko1/src/rb/ruby-debug/target.rb:3 (line)
-
-(rdbg) b 5                             # set breakpoint at line 5
-#1  BP - Line  /mnt/c/ko1/src/rb/ruby-debug/target.rb:5 (line)
-
-(rdbg) break                           # show all registered breakpoints
-#0  BP - Line  /mnt/c/ko1/src/rb/ruby-debug/target.rb:3 (line)
-#1  BP - Line  /mnt/c/ko1/src/rb/ruby-debug/target.rb:5 (line)
-```
-
-You can see that two breakpoints are registered. Let's continue the program by `continue` command.
-
-```shell
-(rdbg) continue
-[1, 7] in target.rb
-      1| a = 1
-      2| b = 2
-=>    3| c = 3
-      4| d = 4
-      5| p [a, b, c, d]
-      6|
-      7| __END__
-=>#0    <main> at target.rb:3
-
-Stop by #0  BP - Line  /mnt/c/ko1/src/rb/ruby-debug/target.rb:3 (line)
-
-(rdbg)
-```
-
-You can see that we can stop at line 3.
-Let's see the local variables with `info` command, and continue.
-You can also confirm that the program will suspend at line 5 and you can use `info` command again.
-
-```shell
-(rdbg) info
-=>#0    <main> at target.rb:3
-%self => main
-a => 1
-b => 2
-c => nil
-d => nil
-
-(rdbg) continue
-[1, 7] in target.rb
-      1| a = 1
-      2| b = 2
-      3| c = 3
-      4| d = 4
-=>    5| p [a, b, c, d]
-      6|
-      7| __END__
-=>#0    <main> at target.rb:5
-
-Stop by #1  BP - Line  /mnt/c/ko1/src/rb/ruby-debug/target.rb:5 (line)
-
-(rdbg) info
-=>#0    <main> at target.rb:5
-%self => main
-a => 1
-b => 2
-c => 3
-d => 4
-
-(rdbg) continue
-[1, 2, 3, 4]
-```
-
-By the way, using `rdbg` command you can suspend your application with `C-c` (SIGINT) and enter the debug console.
-It will help that if you want to know what the program is doing.
-
-### Use `rdbg` with commands written in Ruby
+If you don't want to stop your program until it hits a breakpoint, you can use `rdbg --nonstop` instead (or `-n` for short).
 
 If you want to run a command written in Ruby like like `rake`, `rails`, `bundle`, `rspec` and so on, you can use `rdbg -c` option.
 
-* Without `-c` option, `rdbg <name>` means that `<name>` is Ruby script and invoke it like `ruby <name>` with the debugger.
-* With `-c` option, `rdbg -c <name>` means that `<name>` is command in `PATH` and simply invoke it with the debugger.
+- Without `-c` option, `rdbg <name>` expects `<name>` to be a Ruby script and invokes it like `ruby <name>` with the debugger.
+- With `-c` option, `rdbg -c <name>` expects `<name>` be be command in `PATH` and simply invoke it with the debugger.
 
 Examples:
-* `rdbg -c -- rails server`
-* `rdbg -c -- bundle exec ruby foo.rb`
-* `rdbg -c -- bundle exec rake test`
-* `rdbg -c -- ruby target.rb` is same as `rdbg target.rb`
+- `rdbg target.rb`
+- `rdbg -c -- rails server`
+- `rdbg -c -- bundle exec ruby foo.rb`
+- `rdbg -c -- bundle exec rake test`
+- `rdbg -c -- ruby target.rb` is same as `rdbg target.rb`
 
-NOTE: `--` is needed to separate the command line options for `rdbg` and invoking command. For example, `rdbg -c rake -T` is recognized like `rdbg -c -T -- rake`. It should be `rdbg -c -- rake -T`.
+> **Note**
+> `--` is needed to separate the command line options for `rdbg` and invoking command. For example, `rdbg -c rake -T` is recognized like `rdbg -c -T -- rake`. It should be `rdbg -c -- rake -T`.
 
-NOTE: If you want to use bundler (`bundle` command), you need to write `gem debug` line in your `Gemfile`.
+> **Note**
+> If you want to use bundler (`bundle` command), you need to write `gem debug` line in your `Gemfile`.
 
-## Remote debugging
+## The `binding.break` method
+
+`binding.break` (and its aliases `binding.b` and `debugger`) set breakpoints at the written line. It also has several keywords:
+
+- If `do: 'command'` is specified, the debugger will
+
+    1. Stop the program
+    1. Run the `command` as a debug command
+    1. Continue the program.
+
+    It is useful if you only want to call a debug command and don't want to stop there.
+
+    ```rb
+    def initialize
+      @a = 1
+      binding.b do: 'watch @a'
+    end
+    ```
+
+    In this case, the debugger will register a watch breakpoint for `@a` and continue to run.
+
+- If `pre: 'command'` is specified, the debugger will
+    1. Stop the program
+    1. Run the `command` as a debug command
+    1. Keep the console open
+
+    It is useful if you have repeated operations to perform before the debugging at the breakpoint
+
+    ```rb
+    def foo
+      binding.b pre: 'info locals'
+      ...
+    end
+    ```
+
+    In this case, the debugger will display local variable information automatically so you don't need to type it repeatedly.
+
+# Remote debugging
 
 You can use this debugger as a remote debugger. For example, it will help the following situations:
 
-* Your application does not run on TTY and it is hard to use `binding.pry` or `binding.irb`.
-  * Your application is running on Docker container and there is no TTY.
-  * Your application is running as a daemon.
-  * Your application uses pipe for STDIN or STDOUT.
-* Your application is running as a daemon and you want to query the running status (checking a backtrace and so on).
-* You want to use different debugger clients, like VSCode or Chrome DevTools.
+- Your application does not run on TTY and it is hard to use `binding.pry` or `binding.irb`.
+  - Your application is running on Docker container and there is no TTY.
+  - Your application is running as a daemon.
+  - Your application uses pipe for STDIN or STDOUT.
+- Your application is running as a daemon and you want to query the running status (checking a backtrace and so on).
+- You want to use different debugger clients, like VSCode or Chrome DevTools.
 
 To learn more about remote debugging, please visit [the remote debugging guide](docs/remote_debugging.md).
 
-## Configuration
+# Console commands
 
-You can configure the debugger's behavior with debug commands and environment variables.
-When the debug session is started, initial scripts are loaded so you can put your favorite configurations in the initial scripts.
-
-### Configuration list
-
-You can configure debugger's behavior with environment variables and `config` command. Each configuration has environment variable and the name which can be specified by `config` command.
-
-```
-# configuration example
-config set log_level INFO
-config set no_color true
-```
-
-
-
-* UI
-  * `RUBY_DEBUG_LOG_LEVEL` (`log_level`): Log level same as Logger (default: WARN)
-  * `RUBY_DEBUG_SHOW_SRC_LINES` (`show_src_lines`): Show n lines source code on breakpoint (default: 10)
-  * `RUBY_DEBUG_SHOW_FRAMES` (`show_frames`): Show n frames on breakpoint (default: 2)
-  * `RUBY_DEBUG_USE_SHORT_PATH` (`use_short_path`): Show shorten PATH (like $(Gem)/foo.rb) (default: false)
-  * `RUBY_DEBUG_NO_COLOR` (`no_color`): Do not use colorize (default: false)
-  * `RUBY_DEBUG_NO_SIGINT_HOOK` (`no_sigint_hook`): Do not suspend on SIGINT (default: false)
-  * `RUBY_DEBUG_NO_RELINE` (`no_reline`): Do not use Reline library (default: false)
-
-* CONTROL
-  * `RUBY_DEBUG_SKIP_PATH` (`skip_path`): Skip showing/entering frames for given paths
-  * `RUBY_DEBUG_SKIP_NOSRC` (`skip_nosrc`): Skip on no source code lines (default: false)
-  * `RUBY_DEBUG_KEEP_ALLOC_SITE` (`keep_alloc_site`): Keep allocation site and p, pp shows it (default: false)
-  * `RUBY_DEBUG_POSTMORTEM` (`postmortem`): Enable postmortem debug (default: false)
-  * `RUBY_DEBUG_FORK_MODE` (`fork_mode`): Control which process activates a debugger after fork (both/parent/child) (default: both)
-  * `RUBY_DEBUG_SIGDUMP_SIG` (`sigdump_sig`): Sigdump signal (default: false)
-
-* BOOT
-  * `RUBY_DEBUG_NONSTOP` (`nonstop`): Nonstop mode (default: false)
-  * `RUBY_DEBUG_STOP_AT_LOAD` (`stop_at_load`): Stop at just loading location (default: false)
-  * `RUBY_DEBUG_INIT_SCRIPT` (`init_script`): debug command script path loaded at first stop
-  * `RUBY_DEBUG_COMMANDS` (`commands`): debug commands invoked at first stop. commands should be separated by ';;'
-  * `RUBY_DEBUG_NO_RC` (`no_rc`): ignore loading ~/.rdbgrc(.rb) (default: false)
-  * `RUBY_DEBUG_HISTORY_FILE` (`history_file`): history file (default: ~/.rdbg_history)
-  * `RUBY_DEBUG_SAVE_HISTORY` (`save_history`): maximum save history lines (default: 10000)
-
-* REMOTE
-  * `RUBY_DEBUG_PORT` (`port`): TCP/IP remote debugging: port
-  * `RUBY_DEBUG_HOST` (`host`): TCP/IP remote debugging: host (default: 127.0.0.1)
-  * `RUBY_DEBUG_SOCK_PATH` (`sock_path`): UNIX Domain Socket remote debugging: socket path
-  * `RUBY_DEBUG_SOCK_DIR` (`sock_dir`): UNIX Domain Socket remote debugging: socket directory
-  * `RUBY_DEBUG_COOKIE` (`cookie`): Cookie for negotiation
-  * `RUBY_DEBUG_OPEN_FRONTEND` (`open_frontend`): frontend used by open command (vscode, chrome, default: rdbg).
-  * `RUBY_DEBUG_CHROME_PATH` (`chrome_path`): Platform dependent path of Chrome (For more information, See [here](https://github.com/ruby/debug/pull/334/files#diff-5fc3d0a901379a95bc111b86cf0090b03f857edfd0b99a0c1537e26735698453R55-R64))
-
-* OBSOLETE
-  * `RUBY_DEBUG_PARENT_ON_FORK` (`parent_on_fork`): Keep debugging parent process on fork (default: false)
-
-### Initial scripts
-
-If there is `~/.rdbgrc`, the file is loaded as an initial script (which contains debug commands) when the debug session is started.
-
-* `RUBY_DEBUG_INIT_SCRIPT` environment variable can specify the initial script file.
-* You can specify the initial script with `rdbg -x initial_script` (like gdb's `-x` option).
-
-Initial scripts are useful to write your favorite configurations.
-For example, you can set break points with `break file:123` in `~/.rdbgrc`.
-
-If there are `~/.rdbgrc.rb` is available, it is also loaded as a ruby script at same timing.
-
-## Debug command on the debug console
-
-On the debug console, you can use the following debug commands.
+In the debug console, you can use the following debug commands.
 
 There are additional features:
 
-* `<expr>` without debug command is almost same as `pp <expr>`.
-  * If the input line `<expr>` does *NOT* start with any debug command, the line `<expr>` will be evaluated as a Ruby expression and the result will be printed with `pp` method. So that the input `foo.bar` is same as `pp foo.bar`.
-  * If `<expr>` is recognized as a debug command, of course it is not evaluated as a Ruby expression, but is executed as debug command. For example, you can not evaluate such single letter local variables `i`, `b`, `n`, `c` because they are single letter debug commands. Use `p i` instead.
-* `Enter` without any input repeats the last command (useful when repeating `step`s).
-* `Ctrl-D` is equal to `quit` command.
-* [debug command compare sheet - Google Sheets](https://docs.google.com/spreadsheets/d/1TlmmUDsvwK4sSIyoMv-io52BUUz__R5wpu-ComXlsw0/edit?usp=sharing)
+- `<expr>` without debug command is almost same as `pp <expr>`.
+  - If the input line `<expr>` does *NOT* start with any debug command, the line `<expr>` will be evaluated as a Ruby expression and the result will be printed with `pp` method. So that the input `foo.bar` is same as `pp foo.bar`.
+  - If `<expr>` is recognized as a debug command, of course it is not evaluated as a Ruby expression, but is executed as debug command. For example, you can not evaluate such single letter local variables `i`, `b`, `n`, `c` because they are single letter debug commands. Use `p i` instead.
+- `Enter` without any input repeats the last command (useful when repeating `step`s).
+- `Ctrl-D` is equal to `quit` command.
+- [debug command compare sheet - Google Sheets](https://docs.google.com/spreadsheets/d/1TlmmUDsvwK4sSIyoMv-io52BUUz__R5wpu-ComXlsw0/edit?usp=sharing)
 
 You can use the following debug commands. Each command should be written in 1 line.
 The `[...]` notation means this part can be eliminate. For example, `s[tep]` means `s` or `step` are valid command. `ste` is not valid.
@@ -566,82 +400,74 @@ The `<...>` notation means the argument.
   * Show help for the given command.
 
 
-## Debugger API
+# Configuration
 
-### Start debugging
+You can configure the debugger's behavior with the `config` command and environment variables.
 
-#### Start by requiring a library
-
-You can start debugging without `rdbg` command by requiring the following libraries:
-
-* `require 'debug'`: Same as `rdbg --nonstop --no-sigint-hook`.
-* `require 'debug/start'`: Same as `rdbg`.
-* `require 'debug/open'`: Same as `rdbg --open`.
-* `require 'debug/open_nonstop'`: Same as `rdbg --open --nonstop`.
-
-You need to require one of them at the very beginning of the application.
-Using `ruby -r` (for example `ruby -r debug/start target.rb`) is another way to invoke with debugger.
-
-NOTE: Until Ruby 3.0, there is old `lib/debug.rb` standard library. So that if this gem is not installed, or if `Gemfile` missed to list this gem and `bundle exec` is used, you will see the following output:
-
-```shell
-$ ruby -r debug -e0
-.../2.7.3/lib/ruby/2.7.0/x86_64-linux/continuation.so: warning: callcc is obsolete; use Fiber instead
-Debug.rb
-Emacs support available.
-
-.../2.7.3/lib/ruby/2.7.0/rubygems/core_ext/kernel_require.rb:162:    if RUBYGEMS_ACTIVATION_MONITOR.respond_to?(:mon_owned?)
-(rdb:1)
-```
-
-`lib/debug.rb` was not maintained well in recent years, and the purpose of this library is to rewrite old `lib/debug.rb` with recent techniques.
-
-#### Start by method
-
-After loading `debug/session`, you can start debug session with the following methods. They are convenient if you want to specify debug configurations in your program.
-
-* `DEBUGGER__.start(**kw)`: start debug session with local console.
-* `DEBUGGER__.open(**kw)`: open debug port with configuration (without configurations open with UNIX domain socket)
-* `DEBUGGER__.open_unix(**kw)`: open debug port with UNIX domain socket
-* `DEBUGGER__.open_tcp(**kw)`: open debug port with TCP/IP
-
-For example:
-
-```ruby
-require 'debug/session'
-DEBUGGER__.start(no_color: true,    # disable colorize
-                 log_level: 'INFO') # Change log_level to INFO
-
-... # your application code
-```
-
-### `binding.break` method
-
-`binding.break` (or `binding.b`) set breakpoints at written line. It also has several keywords.
-
-If `do: 'command'` is specified, the debugger suspends the program and run the `command` as a debug command and continue the program.
-It is useful if you only want to call a debug command and don't want to stop there.
+Every configuration has a corresponding environment variable, for example:
 
 ```
-def initialize
-  @a = 1
-  binding.b do: 'watch @a'
-end
+config set log_level INFO # RUBY_DEBUG_LOG_LEVEL=INFO
+config set no_color true  # RUBY_DEBUG_NO_COLOR=true
 ```
 
-On this case, register a watch breakpoint for `@a` and continue to run.
 
-If `pre: 'command'` is specified, the debugger suspends the program and run the `command` as a debug command, and keep suspend.
-It is useful if you have operations before suspend.
+
+- UI
+  - `RUBY_DEBUG_LOG_LEVEL` (`log_level`): Log level same as Logger (default: WARN)
+  - `RUBY_DEBUG_SHOW_SRC_LINES` (`show_src_lines`): Show n lines source code on breakpoint (default: 10)
+  - `RUBY_DEBUG_SHOW_FRAMES` (`show_frames`): Show n frames on breakpoint (default: 2)
+  - `RUBY_DEBUG_USE_SHORT_PATH` (`use_short_path`): Show shorten PATH (like $(Gem)/foo.rb) (default: false)
+  - `RUBY_DEBUG_NO_COLOR` (`no_color`): Do not use colorize (default: false)
+  - `RUBY_DEBUG_NO_SIGINT_HOOK` (`no_sigint_hook`): Do not suspend on SIGINT (default: false)
+  - `RUBY_DEBUG_NO_RELINE` (`no_reline`): Do not use Reline library (default: false)
+
+- CONTROL
+  - `RUBY_DEBUG_SKIP_PATH` (`skip_path`): Skip showing/entering frames for given paths
+  - `RUBY_DEBUG_SKIP_NOSRC` (`skip_nosrc`): Skip on no source code lines (default: false)
+  - `RUBY_DEBUG_KEEP_ALLOC_SITE` (`keep_alloc_site`): Keep allocation site and p, pp shows it (default: false)
+  - `RUBY_DEBUG_POSTMORTEM` (`postmortem`): Enable postmortem debug (default: false)
+  - `RUBY_DEBUG_FORK_MODE` (`fork_mode`): Control which process activates a debugger after fork (both/parent/child) (default: both)
+  - `RUBY_DEBUG_SIGDUMP_SIG` (`sigdump_sig`): Sigdump signal (default: false)
+
+- BOOT
+  - `RUBY_DEBUG_NONSTOP` (`nonstop`): Nonstop mode (default: false)
+  - `RUBY_DEBUG_STOP_AT_LOAD` (`stop_at_load`): Stop at just loading location (default: false)
+  - `RUBY_DEBUG_INIT_SCRIPT` (`init_script`): debug command script path loaded at first stop
+  - `RUBY_DEBUG_COMMANDS` (`commands`): debug commands invoked at first stop. commands should be separated by ';;'
+  - `RUBY_DEBUG_NO_RC` (`no_rc`): ignore loading ~/.rdbgrc(.rb) (default: false)
+  - `RUBY_DEBUG_HISTORY_FILE` (`history_file`): history file (default: ~/.rdbg_history)
+  - `RUBY_DEBUG_SAVE_HISTORY` (`save_history`): maximum save history lines (default: 10000)
+
+- REMOTE
+  - `RUBY_DEBUG_PORT` (`port`): TCP/IP remote debugging: port
+  - `RUBY_DEBUG_HOST` (`host`): TCP/IP remote debugging: host (default: 127.0.0.1)
+  - `RUBY_DEBUG_SOCK_PATH` (`sock_path`): UNIX Domain Socket remote debugging: socket path
+  - `RUBY_DEBUG_SOCK_DIR` (`sock_dir`): UNIX Domain Socket remote debugging: socket directory
+  - `RUBY_DEBUG_LOCAL_FS_MAP` (`local_fs_map`): Specify local fs map
+  - `RUBY_DEBUG_COOKIE` (`cookie`): Cookie for negotiation
+  - `RUBY_DEBUG_OPEN_FRONTEND` (`open_frontend`): frontend used by open command (vscode, chrome, default: rdbg).
+  - `RUBY_DEBUG_CHROME_PATH` (`chrome_path`): Platform dependent path of Chrome (For more information, See [here](https://github.com/ruby/debug/pull/334/files#diff-5fc3d0a901379a95bc111b86cf0090b03f857edfd0b99a0c1537e26735698453R55-R64))
+
+- OBSOLETE
+  - `RUBY_DEBUG_PARENT_ON_FORK` (`parent_on_fork`): Keep debugging parent process on fork (default: false)
+
+## Initialization scripts
+
+If you want to run certain commands or set configurations for every debugging session automatically, you can put them into the `~/.rdbgrc` file.
+
+If you want to run additional initial scripts, you can also,
+
+- Use `RUBY_DEBUG_INIT_SCRIPT` environment variable can specify the initial script file.
+- Specify the initial script with `rdbg -x initial_script`.
+
+Initial scripts are useful to write your favorite configurations.  For example,
 
 ```
-def foo
-  binding.b pre: 'p bar()'
-  ...
-end
+config set use_short_path true # Use $(Gem)/gem_content to replace the absolute path of gem files
 ```
 
-On this case, you can see the result of `bar()` every time you stop there.
+Finally, you can also write the initial script in Ruby with the file name `~/.rdbgrc.rb`.
 
 ## rdbg command help
 
@@ -712,5 +538,5 @@ Please also check the [contributing guideline](/CONTRIBUTING.md).
 
 # Acknowledgement
 
-* Some tests are based on [deivid-rodriguez/byebug: Debugging in Ruby 2](https://github.com/deivid-rodriguez/byebug)
-* Several codes in `server_cdp.rb` are based on [geoffreylitt/ladybug: Visual Debugger](https://github.com/geoffreylitt/ladybug)
+- Some tests are based on [deivid-rodriguez/byebug: Debugging in Ruby 2](https://github.com/deivid-rodriguez/byebug)
+- Several codes in `server_cdp.rb` are based on [geoffreylitt/ladybug: Visual Debugger](https://github.com/geoffreylitt/ladybug)
