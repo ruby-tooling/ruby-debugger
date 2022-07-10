@@ -19,6 +19,7 @@ module DEBUGGER__
     no_color:       ['RUBY_DEBUG_NO_COLOR',       "UI: Do not use colorize",                    :bool, "false"],
     no_sigint_hook: ['RUBY_DEBUG_NO_SIGINT_HOOK', "UI: Do not suspend on SIGINT",               :bool, "false"],
     no_reline:      ['RUBY_DEBUG_NO_RELINE',      "UI: Do not use Reline library",              :bool, "false"],
+    no_hint:        ['RUBY_DEBUG_NO_HINT',        "UI: Do not show the hint on the REPL",       :bool, "false"],
 
     # control setting
     skip_path:      ['RUBY_DEBUG_SKIP_PATH',      "CONTROL: Skip showing/entering frames for given paths", :path],
@@ -249,6 +250,7 @@ module DEBUGGER__
     def self.parse_argv argv
       config = {
         mode: :start,
+        no_color: (nc = ENV['NO_COLOR']) && !nc.empty?,
       }
       CONFIG_MAP.each{|key, evname|
         if val = ENV[evname]

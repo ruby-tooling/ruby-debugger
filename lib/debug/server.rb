@@ -49,6 +49,7 @@ module DEBUGGER__
         accept do |server, already_connected: false|
           DEBUGGER__.warn "Connected."
           greeting_done = false
+          @need_pause_at_first = true
 
           @accept_m.synchronize{
             @sock = server
@@ -68,7 +69,7 @@ module DEBUGGER__
           } unless already_connected
 
           setup_interrupt do
-            pause unless already_connected
+            pause if !already_connected && @need_pause_at_first
             process
           end
 
@@ -106,6 +107,24 @@ module DEBUGGER__
       end
     end
 
+    def parse_option params
+      case params.strip
+      when /width:\s+(\d+)/
+        @width = $1.to_i
+        parse_option $~.post_match
+      when /cookie:\s+(\S+)/
+        check_cookie $1 if $1 != '-'
+        parse_option $~.post_match
+      when /nonstop: (true|false)/
+        @need_pause_at_first = false if $1 == 'true'
+        parse_option $~.post_match
+      when /(.+):(.+)/
+        raise GreetingError, "Unkown option: #{params}"
+      else
+        # OK
+      end
+    end
+
     def greeting
       case g = @sock.gets
       when /^info cookie:\s+(.*)$/
@@ -116,16 +135,18 @@ module DEBUGGER__
         @sock.close
         raise GreetingError, "HEAD request"
 
-      when /^version:\s+(.+)\s+width: (\d+) cookie:\s+(.*)$/
-        v, w, c = $1, $2, $3
+      when /^version:\s+(\S+)\s+(.+)$/
+        v, params = $1, $2
+
         # TODO: protocol version
         if v != VERSION
           raise GreetingError, "Incompatible version (server:#{VERSION} and client:#{$1})"
         end
+        parse_option(params)
 
-        check_cookie c
-
-        @width = w.to_i
+        puts "DEBUGGER (client): Connected. PID:#{Process.pid}, $0:#{$0}"
+        puts "DEBUGGER (client): Type `Ctrl-C` to enter the debug console." unless @need_pause_at_first
+        puts
 
       when /^Content-Length: (\d+)/
         require_relative 'server_dap'
@@ -133,12 +154,15 @@ module DEBUGGER__
         raise unless @sock.read(2) == "\r\n"
         self.extend(UI_DAP)
         @repl = false
+        @need_pause_at_first = false
         dap_setup @sock.read($1.to_i)
+
       when /^GET \/.* HTTP\/1.1/
         require_relative 'server_cdp'
 
         self.extend(UI_CDP)
         @repl = false
+        @need_pause_at_first = false
         CONFIG.set_config no_color: true
 
         @ws_server = UI_CDP::WebSocketServer.new(@sock)

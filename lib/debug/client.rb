@@ -121,7 +121,10 @@ module DEBUGGER__
       @width = IO.console_size[1]
       @width = 80 if @width == 0
 
-      send "version: #{VERSION} width: #{@width} cookie: #{CONFIG[:cookie]}"
+      send "version: #{VERSION} " +
+           "width: #{@width} " +
+           "cookie: #{CONFIG[:cookie] || '-'} " +
+           "nonstop: #{CONFIG[:nonstop] ? 'true' : 'false'}"
     end
 
     def deactivate
@@ -173,6 +176,8 @@ module DEBUGGER__
     end
 
     def connect
+      pre_commands = (CONFIG[:commands] || '').split(';;')
+
       trap(:SIGINT){
         send "pause"
       }
@@ -199,7 +204,12 @@ module DEBUGGER__
           prev_trap = trap(:SIGINT, 'DEFAULT')
 
           begin
-            line = readline
+            if pre_commands.empty?
+              line = readline
+            else
+              line = pre_commands.shift
+              puts "(rdbg:remote:command) #{line}"
+            end
           rescue Interrupt
             retry
           ensure

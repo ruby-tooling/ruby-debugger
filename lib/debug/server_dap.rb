@@ -75,10 +75,10 @@ module DEBUGGER__
     # nil: no localfs
     @local_fs_map = nil
 
-    def self.local_fs_map_path path
+    def self.remote_to_local_path path
       case @local_fs_map
       when nil
-        false
+        nil
       when true
         path
       else # Array
@@ -92,12 +92,29 @@ module DEBUGGER__
       end
     end
 
+    def self.local_to_remote_path path
+      case @local_fs_map
+      when nil
+        nil
+      when true
+        path
+      else # Array
+        @local_fs_map.each do |(remote_path_prefix, local_path_prefix)|
+          if path.start_with? local_path_prefix
+            return path.sub(local_path_prefix){ remote_path_prefix }
+          end
+        end
+
+        nil
+      end
+    end
+
     def self.local_fs_map_set map
       return if @local_fs_map # already setup
 
       case map
       when String
-        @local_fs_map = map.split(',').map{|e| e.split(':')}
+        @local_fs_map = map.split(',').map{|e| e.split(':').map{|path| path.delete_suffix('/') + '/'}}
       when true
         @local_fs_map = map
       when nil
@@ -184,10 +201,12 @@ module DEBUGGER__
     end
 
     def send **kw
-      kw[:seq] = @seq += 1
-      str = JSON.dump(kw)
-      @sock.write "Content-Length: #{str.bytesize}\r\n\r\n#{str}"
-      show_protocol '<', str
+      if sock = @sock
+        kw[:seq] = @seq += 1
+        str = JSON.dump(kw)
+        sock.write "Content-Length: #{str.bytesize}\r\n\r\n#{str}"
+        show_protocol '<', str
+      end
     end
 
     def send_response req, success: true, message: nil, **kw
@@ -252,29 +271,51 @@ module DEBUGGER__
         ## boot/configuration
         when 'launch'
           send_response req
-          @is_attach = false
           UI_DAP.local_fs_map_set req.dig('arguments', 'localfs') || req.dig('arguments', 'localfsMap')
+          @is_launch = true
+
         when 'attach'
           send_response req
-          Process.kill(UI_ServerBase::TRAP_SIGNAL, Process.pid)
-          @is_attach = true
           UI_DAP.local_fs_map_set req.dig('arguments', 'localfs') || req.dig('arguments', 'localfsMap')
-        when 'setBreakpoints'
-          path = args.dig('source', 'path')
-          SESSION.clear_line_breakpoints path
+          @is_launch = false
 
-          bps = []
-          args['breakpoints'].each{|bp|
-            line = bp['line']
-            if cond = bp['condition']
-              bps << SESSION.add_line_breakpoint(path, line, cond: cond)
-            else
-              bps << SESSION.add_line_breakpoint(path, line)
+        when 'configurationDone'
+          send_response req
+
+          if @is_launch
+            @q_msg << 'continue'
+          else
+            if SESSION.in_subsession?
+              send_event 'stopped', reason: 'pause',
+                                    threadId: 1, # maybe ...
+                                    allThreadsStopped: true
             end
-          }
-          send_response req, breakpoints: (bps.map do |bp| {verified: true,} end)
+          end
+
+        when 'setBreakpoints'
+          req_path = args.dig('source', 'path')
+          path = UI_DAP.local_to_remote_path(req_path)
+
+          if path
+            SESSION.clear_line_breakpoints path
+
+            bps = []
+            args['breakpoints'].each{|bp|
+              line = bp['line']
+              if cond = bp['condition']
+                bps << SESSION.add_line_breakpoint(path, line, cond: cond)
+              else
+                bps << SESSION.add_line_breakpoint(path, line)
+              end
+            }
+            send_response req, breakpoints: (bps.map do |bp| {verified: true,} end)
+          else
+            send_response req, success: false, message: "#{req_path} is not available"
+          end
+
         when 'setFunctionBreakpoints'
           send_response req
+
         when 'setExceptionBreakpoints'
           process_filter = ->(filter_id, cond = nil) {
             bp =
@@ -286,39 +327,40 @@ module DEBUGGER__
               else
                 nil
               end
-            {
-              verified: !bp.nil?,
-              message: bp.inspect,
+              {
+                verified: !bp.nil?,
+                message: bp.inspect,
+              }
             }
-          }
 
-          SESSION.clear_catch_breakpoints 'Exception', 'RuntimeError'
+            SESSION.clear_catch_breakpoints 'Exception', 'RuntimeError'
 
-          filters = args.fetch('filters').map {|filter_id|
-            process_filter.call(filter_id)
-          }
+            filters = args.fetch('filters').map {|filter_id|
+              process_filter.call(filter_id)
+            }
 
-          filters += args.fetch('filterOptions', {}).map{|bp_info|
+            filters += args.fetch('filterOptions', {}).map{|bp_info|
             process_filter.call(bp_info['filterId'], bp_info['condition'])
           }
 
           send_response req, breakpoints: filters
-        when 'configurationDone'
-          send_response req
-          if defined?(@is_attach) && @is_attach
-            @q_msg << 'p'
-            send_event 'stopped', reason: 'pause',
-                                  threadId: 1,
-                                  allThreadsStopped: true
-          else
-            @q_msg << 'continue'
-          end
+
         when 'disconnect'
-          if args.fetch("terminateDebuggee", false)
-            @q_msg << 'kill!'
+          terminate = args.fetch("terminateDebuggee", false)
+
+          if SESSION.in_subsession?
+            if terminate
+              @q_msg << 'kill!'
+            else
+              @q_msg << 'continue'
+            end
           else
-            @q_msg << 'continue'
+            if terminate
+              @q_msg << 'kill!'
+              pause
+            end
           end
+
           send_response req
 
         ## control
@@ -672,7 +714,7 @@ module DEBUGGER__
           path = frame.realpath || frame.path
           source_name = path ? File.basename(path) : frame.location.to_s
 
-          if (path && File.exist?(path)) && (local_path = UI_DAP.local_fs_map_path(path))
+          if (path && File.exist?(path)) && (local_path = UI_DAP.remote_to_local_path(path))
             # ok
           else
             ref = frame.file_lines
