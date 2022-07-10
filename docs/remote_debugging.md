@@ -1,6 +1,12 @@
 # Introduction
 
-Remote debugging with Ruby debugger means:
+This debugger's remote debugging functionality can help the following situations:
+
+- Your application is running on Docker container and there is no TTY.
+- Your application is running as a daemon.
+- Your application uses pipe for STDIN or STDOUT.
+
+Remote debugging with the this debugger means:
 
 1. Invoke your program as a remote debuggee.
 2. Connect the debuggee to supported platforms:
