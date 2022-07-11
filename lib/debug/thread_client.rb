@@ -737,6 +737,23 @@ module DEBUGGER__
 
     ## cmd: breakpoint
 
+    # TODO: support non-ASCII Constant name
+    def constant_name? name
+      case name
+      when /\A::\b/
+        constant_name? $~.post_match
+      when /\A[A-Z]\w*/
+        post = $~.post_match
+        if post.empty?
+          true
+        else
+          constant_name? post
+        end
+      else
+        false
+      end
+    end
+
     def make_breakpoint args
       case args.first
       when :method
@@ -744,9 +761,24 @@ module DEBUGGER__
         bp = MethodBreakpoint.new(current_frame.eval_binding, klass_name, op, method_name, cond: cond, command: cmd, path: path)
         begin
           bp.enable
+        rescue NameError => e
+          if bp.klass
+            puts "Unknown method name: \"#{e.name}\""
+          else
+            # klass_name can not be evaluated
+            if constant_name? klass_name
+              puts "Unknown constant name: \"#{e.name}\""
+            else
+              # only Class name is allowed
+              puts "Not a constant name: \"#{klass_name}\""
+              bp = nil
+            end
+          end
+
+          Session.activate_method_added_trackers if bp
         rescue Exception => e
-          puts e.message
-          ::DEBUGGER__::METHOD_ADDED_TRACKER.enable
+          puts e.inspect
+          bp = nil
         end
 
         bp

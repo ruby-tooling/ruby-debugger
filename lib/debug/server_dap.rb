@@ -361,6 +361,7 @@ module DEBUGGER__
             end
           end
 
+          SESSION.clear_all_breakpoints
           send_response req
 
         ## control
@@ -435,14 +436,6 @@ module DEBUGGER__
     end
 
     ## called by the SESSION thread
-
-    def readline prompt
-      @q_msg.pop || 'kill!'
-    end
-
-    def sock skip: false
-      yield $stderr
-    end
 
     def respond req, res
       send_response(req, **res)
