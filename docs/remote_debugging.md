@@ -8,13 +8,16 @@ This debugger's remote debugging functionality can help the following situations
 
 Remote debugging with the this debugger means:
 
-1. Invoke your program as a remote debuggee.
-2. Connect the debuggee to supported platforms:
-    - Debugger console
+1. [Invoke your program as a remote debuggee](#invoke-program-as-a-remote-debuggee)
+    - Through the [rdbg](#rdbg---open-or-rdbg--o-for-short) executable
+    - Through [`require "debug/open"`](#require-debugopen)
+    - Through [`DEBUGGER__.open`](#debugger__open)
+2. [Connect the debuggee to supported platforms](#connect-to-a-remote-debuggee):
+    - [Debugger console](#debugger-console)
     - [VSCode](#vscode) (or other DAP supporting clients)
     - [Chrome DevTools](#chrome-devtool-integration) (or other CDP supporting clients)
 
-## Quick Start with VSCode or Chrome DevTools
+## Quick start with VSCode or Chrome DevTools
 
 If you use VSCode or Chrome DevTools **and** are running the program and debugger in the same environment (e.g. on the same machine without using container), `--open` flag can do both steps 1 and 2 for you.
 
@@ -27,7 +30,7 @@ $ rdbg --open=vscode target.rb
 
 It will open a debug port, launch VSCode, and attach to it automatically.
 
-# Invoke Program As A Remote Debuggee
+# Invoke program as a remote debuggee
 
 There are multiple ways to run your program as a debuggee:
 
@@ -76,6 +79,22 @@ DEBUGGER__.open
 # your application code
 ```
 
+## UNIX Domain Socket (UDS)
+
+By default, the debugger uses UNIX doamin socket for remote connection. You can customize the socket directory and socket path with environment variables:
+
+- `RUBY_DEBUG_SOCK_DIR` - This is where the debugger will create and look for socket files.
+- `RUBY_DEBUG_SOCK_PATH` - This is the socket file's absolute path that will be used to connect to the debugger.
+  - Currently, the debugger expects socket files to have a `ruby-debug-#{USER}` prefix during socket lookup. But this may be changed in the future.
+
+> **Note**
+> Make sure these variables are visible and synced between both the debuggee and the client. Otherwise, the client may not find the correct socket file.
+
+In addition to the environment variables, you can also configure those options depend on how the debuggee is invoked:
+
+- For `rdbg` executable, you can use the `--sock-path` flag
+- For `DEBUGGER__.open`, you can pass `sock_dir:` and `sock_path:` keyword arguments
+
 ## TCP/IP
 
 If you want to use TCP/IP for remote debugging, you need to specify the port and host through the `--port` and `--host` flags:
@@ -91,9 +110,9 @@ Alternatively, you can also specify port and host with `RUBY_DEBUG_PORT` and `RU
 $ RUBY_DEBUG_PORT=12345 RUBY_DEBUG_HOST=localhost ruby target.rb
 ```
 
-# Connect To A Remote Debuggee
+# Connect to a remote debuggee
 
-## Debugger Console
+## Debugger console
 
 You can connect to the debuggee with `rdbg --attach` command (`rdbg -A` for short).
 
@@ -114,7 +133,7 @@ $ rdbg --attach
 
 If there is only one opened UNIX domain socket in the socket directory, `rdbg --attach` will connect to it automatically.
 
-If there are more than one socket files, you need to specify the socket name after the `--attach` flag:
+If there are more than one socket file, you need to specify the socket name after the `--attach` flag:
 
 ```shell
 ❯ rdbg --attach
@@ -155,7 +174,7 @@ You can configure the extension in `.vscode/launch.json`. Please see the extensi
 
 You can also check [Debugging in Visual Studio Code](https://code.visualstudio.com/docs/editor/debugging) for more information about VSCode's debugger features.
 
-### Start The Debuggee Program From VSCode
+### Debug a Ruby script
 
 1. Open a `.rb` file (e.g. `target.rb`)
 1. Register breakpoints using "Toggle breakpoint" in the `Run` menu (or press F9)
@@ -163,7 +182,21 @@ You can also check [Debugging in Visual Studio Code](https://code.visualstudio.c
 1. You will see a dialog "Debug command line" and you can choose your favorite command line your want to run.
 1. Chosen command line is invoked with `rdbg -c` and VSCode shows the details at breakpoints.
 
-### The `open` Command
+### Debug a Rails/web application
+
+1. Open the application in VSCode and add some breakpoints.
+1. [Start your program as a remote debuggee](#invoke-program-as-a-remote-debuggee)
+    - For example: `bundle exec rdbg --open -n -c -- bundle exec rails s`
+        - `--open` or `-O` means starting the debugger in server mode
+        - `-n`  means don't stop at the beginning of the program, which is usually somewhere at rubygems, not helpful
+        - `-c`  means you'll be running a Ruby-based command
+1. Go back to VSCode's `Run and Debug` panel, you should see a grean play button
+1. Click the dropdown besides the button and select `Attach with rdbg`
+1. Click the play button (or press F5)
+1. It should now connect the VSCode to the debugger
+1. Send some requests and it should stop at your breakpoints
+
+### The `open` command
 
 You can use `open vscode` command in REPL, which is the same as `--open=vscode`.
 
