@@ -6,7 +6,7 @@ This library provides debugging functionality to Ruby (MRI) 2.6 and later. It ha
 
 - Fast: No performance penalty on non-stepping mode and non-breakpoints.
 - Native remote debugging support:
-  - [UNIX domain socket](/docs/remote_debugging.md#invoke-program-as-a-remote-debuggee) (UDS)
+  - [UNIX domain socket](/docs/remote_debugging.md#unix-domain-socket-uds) (UDS)
   - [TCP/IP](/docs/remote_debugging.md#tcpip)
   - Integration with rich debugger frontends
 
@@ -29,7 +29,7 @@ $ gem install debug
 If you use Bundler, write the following line to your Gemfile.
 
 ```rb
-gem "debug", ">= 1.0.0"
+gem "debug", ">= 1.6.0"
 ```
 
 # Usage
@@ -49,7 +49,7 @@ But a debugging session usually consists of 4 steps:
 
 > **Note**
 > You can connect the debugger to your program remotely through UNIX socket or TCP/IP.
-> To learn more, please check the [remote debugging guide](docs/remote_debugging.md).
+> To learn more, please check the [remote debugging guide](/docs/remote_debugging.md).
 
 > **Note**
 > If you want to use VSCode/Chrome integration, the steps will be slightly different. Please also check their dedicated sections:
@@ -107,7 +107,7 @@ If you don't want to stop your program until it hits a breakpoint, you can use `
 If you want to run a command written in Ruby like like `rake`, `rails`, `bundle`, `rspec` and so on, you can use `rdbg -c` option.
 
 - Without `-c` option, `rdbg <name>` expects `<name>` to be a Ruby script and invokes it like `ruby <name>` with the debugger.
-- With `-c` option, `rdbg -c <name>` expects `<name>` be be command in `PATH` and simply invoke it with the debugger.
+- With `-c` option, `rdbg -c <name>` expects `<name>` to be a command in `PATH` and simply invoke it with the debugger.
 
 Examples:
 - `rdbg target.rb`
@@ -205,7 +205,7 @@ Some examples:
 
 You can use the following debug commands. Each command should be written in 1 line.
 
-The `[...]` notation means this part can be eliminate. For example, `s[tep]` means `s` or `step` are valid command. `ste` is not valid.
+The `[...]` notation means this part can be eliminated. For example, `s[tep]` means `s` or `step` are both valid commands. `ste` is not valid.
 The `<...>` notation means the argument.
 
 Here's a [Google sheet](https://docs.google.com/spreadsheets/d/1TlmmUDsvwK4sSIyoMv-io52BUUz__R5wpu-ComXlsw0/edit?usp=sharing) for comparing this and other Ruby debuggers' commands.
