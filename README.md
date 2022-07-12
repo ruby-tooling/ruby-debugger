@@ -2,25 +2,24 @@
 
 # debug.rb
 
-This library provides debugging functionality to Ruby (MRI) 2.6 and later.
+This library provides debugging functionality to Ruby (MRI) 2.6 and later. It has several advantages:
 
-This debug.rb is replacement of traditional lib/debug.rb standard library which is implemented by `set_trace_func`.
-New debug.rb has several advantages:
-
-* Fast: No performance penalty on non-stepping mode and non-breakpoints.
-* [Remote debugging](#remote-debugging): Support remote debugging natively.
+- Fast: No performance penalty on non-stepping mode and non-breakpoints.
+- Native remote debugging support:
   - [UNIX domain socket](/docs/remote_debugging.md#invoke-program-as-a-remote-debuggee) (UDS)
   - [TCP/IP](/docs/remote_debugging.md#tcpip)
-  * Integration with rich debugger frontends
+  - Integration with rich debugger frontends
 
      Frontend |  [Console](/docs/remote_debugging.md#debugger-console) | [VSCode](/docs/remote_debugging.md#vscode) | [Chrome DevTools](/docs/remote_debugging.md#chrome-devtool-integration) |
      ---|---|---|---|
      Connection | UDS, TCP/IP | UDS, TCP/IP | TCP/IP |
      Requirement | No | [vscode-rdbg](https://marketplace.visualstudio.com/items?itemName=KoichiSasada.vscode-rdbg) | Chrome |
+  - See the [remote debugging guide](/docs/remote_debugging.md) for details
 - Flexible: Users can use the debugger in multiple ways
-  - Through requiring files
-  - Through the `rdbg` executable
+  - Through requiring files - like `require "debug"`
+  - Through the [`rdbg` executable](#the-rdbg-executable)
   - Through Ruby APIs
+  - See [activate the debugger in your program](#activate-the-debugger-in-your-program) for details
 
 # Installation
 
@@ -37,67 +36,73 @@ gem "debug", ">= 1.0.0"
 
 The debugger is designed to support a wide range of use cases, so you have many ways to use it.
 
-But essentially, it consists of 4 steps:
+But a debugging session usually consists of 4 steps:
 
 1. [Activate the debugger in your program](#activate-the-debugger-in-your-program)
-1. Set breakpoints
+1. [Set breakpoints](#set-breakpoints)
     - Through [`binding.break`](#the-bindingbreak-method)
-    - [Breakpoint commands](#breakpoint)
+    - Or [breakpoint commands](#breakpoint)
 1. Execute/continue your program and wait for it to hit the breakpoints
-1. Start debugging
+1. [Start debugging](#start-debugging)
     - Here's the [full command list](#console-commands)
     - You can also type `help` or `help <command>` in the console to see commands
 
 > **Note**
-> If you want to use remote console or VSCode/Chrome integration, the steps will be slightly different. Please also check the [remote debugging guide](/docs/remote_debugging.md) as well.
+> You can connect the debugger to your program remotely through UNIX socket or TCP/IP.
+> To learn more, please check the [remote debugging guide](docs/remote_debugging.md).
 
-## Common Usges
-
-Here are the 2 most common usages of the debugger:
-
-### Start with `require` (similar to `byebug` or `pry` use cases)
-  1.
-      ```rb
-      require "debug"
-      ```
-  1.
-      ```rb
-      # somewhere in your program
-      def target_method
-        binding.break
-      end
-      ```
-  1. When the program executes `target_method`, debugger will stop it and open up a console
-
-### Start with `rdbg` command
-  1.
-      ```shell
-      $ bundle exec rdbg -c -- <cmd to start my program> # this will immediately open up a console
-      ```
-  1. Set a breakpoint in the console - e.g. type `break my_file:6`
-  1. Continue the program - e.g. type `continue`
-  1. When the program reaches the location, debugger will stop it and open up a console
-
-## VSCode Integration
-
-A big enhancement of the debugger is its built-in integration with VSCode. Please check the dedicated [VSCode section](/docs/remote_debugging.md#vscode) for more information.
+> **Note**
+> If you want to use VSCode/Chrome integration, the steps will be slightly different. Please also check their dedicated sections:
+> - [VSCode](/docs/remote_debugging.md#vscode)
+> - [Chrome DevTools](/docs/remote_debugging.md#chrome-devtool-integration)
 
 ## Activate the debugger in your program
 
-As mentioned earlier, you can use various ways to integrate the debugger with your program.
-
-So in addition to the 2 most common cases, here's a more detailed breakdown:
+As mentioned earlier, you can use various ways to integrate the debugger with your program. Here's a simple breakdown:
 
 Start at program start | `rdbg` | require | debugger API (after `require "debug/session"`)
 ---|---|---|---|
 Yes | `rdbg` | `require "debug/start"` | `DEBUGGER__.start`
 No | `rdbg --nonstop` | `require "debug"` | `DEBUGGER__.start(nonstop: true)`
 
+But here are the 2 most common use cases:
+
+### `require "debug"`
+
+Similar to `byebug` or `pry`, once you've required `debug`, you can start setting breakpoints with the [`binding.break`](#the-bindingbreak-method) method.
+
 ### The `rdbg` executable
 
 You can also start your program with the `rdbg` executable, which will enter a debugging session at the beginning of your program by default.
 
+```shell
+❯ rdbg target.rb
+[1, 7] in target.rb
+=>   1| def foo # stops at the beginning of the program
+     2|   10
+     3| end
+     4|
+     5| foo
+     6|
+     7| binding.break
+=>#0    <main> at target.rb:1
+(rdbg)
+```
+
 If you don't want to stop your program until it hits a breakpoint, you can use `rdbg --nonstop` instead (or `-n` for short).
+
+```shell
+❯ rdbg --nonstop target.rb
+[2, 7] in target.rb
+     2|   10
+     3| end
+     4|
+     5| foo
+     6|
+=>   7| binding.break # stops at the first breakpoint
+=>#0    <main> at target.rb:7
+(rdbg)
+```
 
 If you want to run a command written in Ruby like like `rake`, `rails`, `bundle`, `rspec` and so on, you can use `rdbg -c` option.
 
@@ -117,9 +122,26 @@ Examples:
 > **Note**
 > If you want to use bundler (`bundle` command), you need to write `gem debug` line in your `Gemfile`.
 
-## The `binding.break` method
+## Set breakpoints
 
-`binding.break` (and its aliases `binding.b` and `debugger`) set breakpoints at the written line. It also has several keywords:
+### The `binding.break` method
+
+`binding.break` (and its aliases `binding.b` and `debugger`) set breakpoints at the written line.
+
+```rb
+❯ ruby -rdebug target.rb
+[2, 7] in target.rb
+     2|   10
+     3| end
+     4|
+     5| foo
+     6|
+=>   7| binding.break
+=>#0    <main> at target.rb:7
+(rdbg)
+```
+
+#### Advanced usages
 
 - If `do: 'command'` is specified, the debugger will
 
@@ -154,33 +176,39 @@ Examples:
 
     In this case, the debugger will display local variable information automatically so you don't need to type it repeatedly.
 
-# Remote debugging
+## Start debugging
 
-You can use this debugger as a remote debugger. For example, it will help the following situations:
+Once you're in the debugger console, you can start debugging with it. But here are some useful tips:
 
-- Your application does not run on TTY and it is hard to use `binding.pry` or `binding.irb`.
-  - Your application is running on Docker container and there is no TTY.
-  - Your application is running as a daemon.
-  - Your application uses pipe for STDIN or STDOUT.
-- Your application is running as a daemon and you want to query the running status (checking a backtrace and so on).
-- You want to use different debugger clients, like VSCode or Chrome DevTools.
-
-To learn more about remote debugging, please visit [the remote debugging guide](docs/remote_debugging.md).
-
-# Console commands
-
-Before we get into debugger commands, there are a few other console features:
-
-- `<expr>` without debug command is almost same as `pp <expr>`.
-  - If the input line `<expr>` does *NOT* start with any debug command, the line `<expr>` will be evaluated as a Ruby expression and the result will be printed with `pp` method. So that the input `foo.bar` is same as `pp foo.bar`.
-  - If `<expr>` is recognized as a debug command, of course it is not evaluated as a Ruby expression, but is executed as debug command. For example, you can not evaluate such single letter local variables `i`, `b`, `n`, `c` because they are single letter debug commands. Use `p i` instead.
 - `Enter` without any input repeats the last command (useful when repeating `step`s).
-- `Ctrl-D` is equal to `quit` command.
-- [debug command compare sheet - Google Sheets](https://docs.google.com/spreadsheets/d/1TlmmUDsvwK4sSIyoMv-io52BUUz__R5wpu-ComXlsw0/edit?usp=sharing)
+- `Ctrl-D` is the same as the `quit` command.
+
+### Command & expression parsing
+
+Because the debugger supports both Ruby expression evaluation and dozens of commands, name collision happens.
+
+So here're a few rules explaining how the debugger interprets your input:
+
+- If `<input>.split(" ")` does **NOT** start with any debugger command (e.g. `my_var` or `foo bar`), it will be evaluated as `pp <input>`
+- If `<input>.split(" ")` starts with a command or a command shortcut (like `info` and `i`), it will be treated as a command instead.
+
+Some examples:
+
+  - `foo.bar` is same as `pp foo.bar`.
+  - `info arg` are `i arg` are considered as `<info cmd> arg`
+  - `info(arg)` is considered as `pp self.info(arg)`
+  - `i` is considered as `<info cmd>`
+  - `pp i` prints `i`
+
+
+### Console commands
 
 You can use the following debug commands. Each command should be written in 1 line.
+
 The `[...]` notation means this part can be eliminate. For example, `s[tep]` means `s` or `step` are valid command. `ste` is not valid.
 The `<...>` notation means the argument.
+
+Here's a [Google sheet](https://docs.google.com/spreadsheets/d/1TlmmUDsvwK4sSIyoMv-io52BUUz__R5wpu-ComXlsw0/edit?usp=sharing) for comparing this and other Ruby debuggers' commands.
 
 ### Control flow
 
