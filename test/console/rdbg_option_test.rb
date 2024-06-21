@@ -81,11 +81,7 @@ module DEBUGGER__
     end
   end
 
-  class RCFileTest < ConsoleTestCase
-    def rc_filename
-      File.join(pty_home_dir, ".rdbgrc")
-    end
-
+  module RCFileTests
     def rc_script
       "config set skip_path /foo/bar/"
     end
@@ -122,6 +118,22 @@ module DEBUGGER__
           type "c"
         end
       end
+    end
+  end
+
+  class GlobalRCFileTest < ConsoleTestCase
+    include RCFileTests
+
+    def rc_filename
+      File.join(pty_home_dir, ".rdbgrc")
+    end
+  end
+
+  class LocalRCFileTest < ConsoleTestCase
+    include RCFileTests
+
+    def rc_filename
+      File.join(Dir.pwd, ".rdbgrc")
     end
   end
 
